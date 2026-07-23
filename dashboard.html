@@ -115,7 +115,8 @@
   // ⚠️ Set your own passcode here
   const ADMIN_PASSCODE = "@itisDONE80";
   const SHEET_ID = "1APw5t__bhsly2ubrcCH-9iwvaNL0hIXUldJk69KVjGA";
-  const SHEET_NAME = "Sheet1";
+  const PUBLISHED_ID = "2PACX-1vTs59NpGLSn3q3r5zbliGTEnEj22MPiAL_u5oF6nOnSuOj1Y0qEa01Sag-hQdJn_ii4G1ZAklwDPAUD";
+  const GID = "0";
 
   document.getElementById("sheet-link").href = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
 
@@ -137,32 +138,50 @@
 
   let rawEntries = [];
 
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i], next = text[i + 1];
+      if (inQuotes) {
+        if (c === '"' && next === '"') { field += '"'; i++; }
+        else if (c === '"') { inQuotes = false; }
+        else { field += c; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ",") { row.push(field); field = ""; }
+        else if (c === "\r") { /* skip */ }
+        else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+        else field += c;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
   function loadData() {
     document.getElementById("loading").style.display = "block";
+    document.getElementById("loading").textContent = "Loading roster...";
     document.getElementById("grid").innerHTML = "";
-    const cbName = "kolcardCB_" + Date.now();
-    window[cbName] = (json) => {
-      const rows = json.table.rows || [];
-      rawEntries = rows.map((r, i) => {
-        const obj = { _id: i };
-        COLUMNS.forEach((col, idx) => {
-          const cell = r.c[idx];
-          obj[col] = cell ? (cell.f || cell.v || "") : "";
-        });
-        return obj;
-      }).filter(e => e.Name);
-      document.getElementById("loading").style.display = "none";
-      render();
-      delete window[cbName];
-      script.remove();
-    };
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler=${cbName}&sheet=${encodeURIComponent(SHEET_NAME)}`;
-    const script = document.createElement("script");
-    script.src = url;
-    script.onerror = () => {
-      document.getElementById("loading").textContent = "Couldn't load data. Check the Sheet is shared as 'Anyone with the link — Viewer'.";
-    };
-    document.body.appendChild(script);
+    const url = `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_ID}/pub?output=csv&gid=${GID}&t=${Date.now()}`;
+    fetch(url)
+      .then(res => {
+        if (!res.ok) throw new Error("Bad response");
+        return res.text();
+      })
+      .then(text => {
+        const rows = parseCSV(text);
+        rawEntries = rows.map((r, i) => {
+          const obj = { _id: i };
+          COLUMNS.forEach((col, idx) => { obj[col] = r[idx] || ""; });
+          return obj;
+        }).filter(e => e.Name && e.Name.trim());
+        document.getElementById("loading").style.display = "none";
+        render();
+      })
+      .catch(() => {
+        document.getElementById("loading").textContent = "Couldn't load data. Make sure File → Share → Publish to web is turned on for this Sheet.";
+      });
   }
 
   function totalFollowers(e) {
