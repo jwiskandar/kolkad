@@ -221,16 +221,63 @@
     list.forEach((e, i) => {
       const card = document.createElement("div");
       card.className = "card";
-      const platforms = (e.Platforms || "").split("|").map(p => p.split(":")[0].trim()).filter(Boolean).slice(0, 3);
+
+      // Build per-platform rows: only show platforms the KOL actually filled in
+      const platformRows = [];
+      if (e["IG Handle"] || Number(e["IG Followers"]) > 0) {
+        platformRows.push({ label: "Instagram", count: e["IG Followers"] });
+      }
+      if (e["TikTok Handle"] || Number(e["TikTok Followers"]) > 0) {
+        platformRows.push({ label: "TikTok", count: e["TikTok Followers"] });
+      }
+      if (e["YouTube Handle"] || Number(e["YouTube Followers"]) > 0) {
+        platformRows.push({ label: "YouTube", count: e["YouTube Followers"] });
+      }
+      // Also surface "Other" platforms from the free-form Platforms field (no follower count available)
+      const otherPlatforms = (e.Platforms || "")
+        .split("|")
+        .map(p => p.split(":")[0].trim())
+        .filter(p => p && !["instagram", "tiktok", "youtube"].includes(p.toLowerCase()));
+
+      const platformHtml = platformRows.map(p => `
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#B8BEC9;padding:3px 0;">
+          <span>${escapeHtml(p.label)}</span>
+          <span class="mono" style="color:#FFC857;">${fmtFollowers(p.count)}</span>
+        </div>
+      `).join("") + (otherPlatforms.length ? `
+        <div style="font-size:11px;color:#565C6B;padding-top:4px;">
+          + ${otherPlatforms.map(p => escapeHtml(p)).join(", ")}
+        </div>
+      ` : "");
+
+      // Rates row: show whichever are filled
+      const rateBits = [];
+      if (e["Rate Post"]) rateBits.push(`Post <b class="mono" style="color:#F3F1EA;">${escapeHtml(e["Rate Post"])}</b>`);
+      if (e["Rate Live"]) rateBits.push(`Live <b class="mono" style="color:#F3F1EA;">${escapeHtml(e["Rate Live"])}</b>`);
+      const ratesHtml = rateBits.length ? `
+        <div style="border-top:1px solid #2C3140;margin-top:12px;padding-top:10px;font-size:12px;color:#8A8F9C;">
+          ${rateBits.join(" &nbsp;·&nbsp; ")}
+        </div>
+      ` : `
+        <div style="border-top:1px solid #2C3140;margin-top:12px;padding-top:10px;font-size:11px;color:#565C6B;">
+          No rates listed
+        </div>
+      `;
+
       card.innerHTML = `
         <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
           <span class="mono" style="color:#4A4F5C;font-size:11px;">#${String(i + 1).padStart(3, "0")}</span>
           <span class="chip">${e.Category || "—"}</span>
         </div>
-        <h3 class="disp" style="font-size:22px;margin:0 0 4px;">${escapeHtml(e.Name)}</h3>
-        <div style="margin-bottom:14px;">${platforms.map(p => `<span class="chip">${escapeHtml(p)}</span>`).join("")}</div>
-        <div class="mono" style="font-size:20px;color:#FFC857;font-weight:700;">${fmtFollowers(totalFollowers(e))}</div>
-        <div style="font-size:10px;color:#565C6B;text-transform:uppercase;">total reach</div>
+        <h3 class="disp" style="font-size:22px;margin:0 0 12px;">${escapeHtml(e.Name)}</h3>
+        <div style="margin-bottom:10px;">${platformHtml || '<div style="font-size:12px;color:#565C6B;">No platforms listed</div>'}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8px;">
+          <div>
+            <div class="mono" style="font-size:18px;color:#FFC857;font-weight:700;">${fmtFollowers(totalFollowers(e))}</div>
+            <div style="font-size:10px;color:#565C6B;text-transform:uppercase;">total reach</div>
+          </div>
+        </div>
+        ${ratesHtml}
       `;
       card.onclick = () => openModal(e);
       grid.appendChild(card);
